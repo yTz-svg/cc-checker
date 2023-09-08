@@ -207,6 +207,45 @@ int main()
         return -1;
     }
 
+    CreditCardInfo *credit_cards = NULL;
+    int num_credit_cards = lerCartoesDeArquivo("resultados/cartoes.txt", &credit_cards);
+
+    if (num_credit_cards == 0)
+    {
+        fprintf(stderr, "Nenhum cartão de crédito encontrado no arquivo.\n");
+        return -2;
+    }
+
+    pthread_t threads[NUM_THREADS];
+    int i;
+    int chunk_size = num_credit_cards / NUM_THREADS;
+    for (i = 0; i < NUM_THREADS; i++)
+    {
+        int start_index = i * chunk_size;
+        int end_index = (i == NUM_THREADS - 1) ? num_credit_cards : start_index + chunk_size;
+        ThreadData *thread_data = (ThreadData *)malloc(sizeof(ThreadData));
+        thread_data->start_index = start_index;
+        thread_data->end_index = end_index;
+        thread_data->credit_cards = credit_cards;
+
+        int thread_create_result = pthread_create(&threads[i], NULL, processarCartoes, (void *)thread_data);
+
+        if (thread_create_result != 0)
+        {
+            fprintf(stderr, "Erro ao criar a thread %d. Código de erro: %d\n", i, thread_create_result);
+            return -3;
+        }
+    }
+
+    for (i = 0; i < NUM_THREADS; i++)
+    {
+        pthread_join(threads[i], NULL);
+    }
+
+    salvarResultadosEmArquivo("results/resultado.txt", credit_cards, num_credit_cards);
+    salvarResultadosEmArquivo("criptografia/resultado_criptografado.txt", credit_cards, num_credit_cards);
+
+    free(credit_cards);
 
     return 0;
 }
