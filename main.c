@@ -8,7 +8,7 @@
 #include <openssl/rand.h>
 #include <sys/stat.h>
 
-#define API_KEY "seu_api_key" // Substitua pelo seu token de acesso real
+#define API_KEY "sua_chave_api" // Substitua pela sua chave de acesso real
 #define NUM_THREADS 4
 #define MAX_CARDS_PER_THREAD 10
 #define MAX_CARD_LENGTH 16
@@ -16,7 +16,7 @@
 #define AES_KEY_SIZE 256
 #define AES_BLOCK_SIZE 16
 #define ENCRYPTED_FOLDER "criptografia"
-#define RESULTS_FOLDER "results"
+#define RESULTS_FOLDER "resultados"
 #define PROXY_CONFIG_FILE "proxy/config.txt"
 #define MAX_PROXY_URL_LENGTH 256
 
@@ -24,19 +24,19 @@ typedef struct
 {
     char numero[MAX_CARD_LENGTH + 1];
     char resultado[RESPONSE_SIZE];
-} CreditCardInfo;
+} InformacoesCartaoCredito;
 
-size_t write_callback(void *contents, size_t size, size_t nmemb, void *userp)
+size_t escrever_callback(void *dados, size_t tamanho, size_t nmemb, void *usuario)
 {
-    size_t total_size = size * nmemb;
-    memcpy(userp, contents, total_size);
-    return total_size;
+    size_t tamanho_total = tamanho * nmemb;
+    memcpy(usuario, dados, tamanho_total);
+    return tamanho_total;
 }
 
 int fazerSolicitacaoAPI(const char *numero_cartao, char *resposta, const char *proxy_url)
 {
     CURL *curl;
-    CURLcode res;
+    CURLcode resultado;
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
@@ -51,34 +51,34 @@ int fazerSolicitacaoAPI(const char *numero_cartao, char *resposta, const char *p
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
 
-    char post_data[256];
-    snprintf(post_data, sizeof(post_data), "cc=%s&apiKey=%s", numero_cartao, API_KEY);
+    char dados_postagem[256];
+    snprintf(dados_postagem, sizeof(dados_postagem), "cc=%s&apiKey=%s", numero_cartao, API_KEY);
 
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, post_data);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, dados_postagem);
 
-    struct curl_slist *headers = NULL;
-    headers = curl_slist_append(headers, "Content-Type: application/x-www-form-urlencoded");
+    struct curl_slist *cabecalhos = NULL;
+    cabecalhos = curl_slist_append(cabecalhos, "Content-Type: application/x-www-form-urlencoded");
 
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, cabecalhos);
 
-    char response_data[RESPONSE_SIZE];
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, response_data);
+    char dados_resposta[RESPONSE_SIZE];
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, escrever_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, dados_resposta);
 
     if (proxy_url != NULL)
     {
         curl_easy_setopt(curl, CURLOPT_PROXY, proxy_url);
     }
 
-    res = curl_easy_perform(curl);
+    resultado = curl_easy_perform(curl);
 
-    if (res == CURLE_OK)
+    if (resultado == CURLE_OK)
     {
-        strcpy(resposta, response_data);
+        strcpy(resposta, dados_resposta);
     }
     else
     {
-        fprintf(stderr, "Erro ao fazer a solicitação: %s\n", curl_easy_strerror(res));
+        fprintf(stderr, "Erro ao fazer a solicitação: %s\n", curl_easy_strerror(resultado));
         return -2;
     }
 
@@ -89,54 +89,54 @@ int fazerSolicitacaoAPI(const char *numero_cartao, char *resposta, const char *p
     return 0;
 }
 
-void generateAESKey(unsigned char *aes_key)
+void gerarChaveAES(unsigned char *chave_aes)
 {
-    if (!RAND_bytes(aes_key, AES_KEY_SIZE / 8))
+    if (!RAND_bytes(chave_aes, AES_KEY_SIZE / 8))
     {
         fprintf(stderr, "Erro ao gerar a chave AES.\n");
         exit(EXIT_FAILURE);
     }
 }
 
-void encryptAES(const unsigned char *data, size_t data_length, const unsigned char *aes_key, unsigned char *encrypted_data)
+void criptografarAES(const unsigned char *dados, size_t tamanho_dados, const unsigned char *chave_aes, unsigned char *dados_criptografados)
 {
-    AES_KEY key;
-    if (AES_set_encrypt_key(aes_key, AES_KEY_SIZE, &key) < 0)
+    AES_KEY chave;
+    if (AES_set_encrypt_key(chave_aes, AES_KEY_SIZE, &chave) < 0)
     {
         fprintf(stderr, "Erro ao definir a chave de criptografia AES.\n");
         exit(EXIT_FAILURE);
     }
 
-    AES_encrypt(data, encrypted_data, &key);
+    AES_encrypt(dados, dados_criptografados, &chave);
 }
 
-int lerProxyConfig(const char *config_file, char *proxy_url)
+int lerConfiguracaoProxy(const char *arquivo_configuracao, char *url_proxy)
 {
-    FILE *arquivo = fopen(config_file, "r");
+    FILE *arquivo = fopen(arquivo_configuracao, "r");
     if (!arquivo)
     {
-        fprintf(stderr, "Erro ao abrir o arquivo de configuração do proxy: %s\n", config_file);
+        fprintf(stderr, "Erro ao abrir o arquivo de configuração do proxy: %s\n", arquivo_configuracao);
         return -1;
     }
 
-    if (fgets(proxy_url, MAX_PROXY_URL_LENGTH, arquivo) == NULL)
+    if (fgets(url_proxy, MAX_PROXY_URL_LENGTH, arquivo) == NULL)
     {
         fprintf(stderr, "Erro ao ler o URL do proxy do arquivo de configuração\n");
         fclose(arquivo);
         return -2;
     }
 
-    size_t len = strlen(proxy_url);
-    if (len > 0 && proxy_url[len - 1] == '\n')
+    size_t len = strlen(url_proxy);
+    if (len > 0 && url_proxy[len - 1] == '\n')
     {
-        proxy_url[len - 1] = '\0';
+        url_proxy[len - 1] = '\0';
     }
 
     fclose(arquivo);
     return 0;
 }
 
-int lerCartoesDeArquivo(const char *nome_arquivo, CreditCardInfo **credit_cards)
+int lerCartoesDeArquivo(const char *nome_arquivo, InformacoesCartaoCredito **cartoes_credito)
 {
     FILE *arquivo = fopen(nome_arquivo, "r");
     if (!arquivo)
@@ -156,17 +156,17 @@ int lerCartoesDeArquivo(const char *nome_arquivo, CreditCardInfo **credit_cards)
     }
     rewind(arquivo);
 
-    *credit_cards = (CreditCardInfo *)malloc(num_linhas * sizeof(CreditCardInfo));
-    if (!(*credit_cards))
+    *cartoes_credito = (InformacoesCartaoCredito *)malloc(num_linhas * sizeof(InformacoesCartaoCredito));
+    if (!(*cartoes_credito))
     {
-        fprintf(stderr, "Erro ao alocar memória para os cartões\n");
+        fprintf(stderr, "Erro ao alocar memória para os cartões de crédito\n");
         exit(EXIT_FAILURE);
     }
 
     int i = 0;
-    while (fgets((*credit_cards)[i].numero, MAX_CARD_LENGTH + 1, arquivo))
+    while (fgets((*cartoes_credito)[i].numero, MAX_CARD_LENGTH + 1, arquivo))
     {
-        (*credit_cards)[i].numero[strlen((*credit_cards)[i].numero) - 1] = '\0';
+        (*cartoes_credito)[i].numero[strlen((*cartoes_credito)[i].numero) - 1] = '\0';
         i++;
     }
 
@@ -174,7 +174,7 @@ int lerCartoesDeArquivo(const char *nome_arquivo, CreditCardInfo **credit_cards)
     return num_linhas;
 }
 
-void salvarResultadosEmArquivo(const char *nome_arquivo, CreditCardInfo *credit_cards, int num_credit_cards)
+void salvarResultadosEmArquivo(const char *nome_arquivo, InformacoesCartaoCredito *cartoes_credito, int num_cartoes_credito)
 {
     FILE *arquivo = fopen(nome_arquivo, "w");
     if (!arquivo)
@@ -183,34 +183,55 @@ void salvarResultadosEmArquivo(const char *nome_arquivo, CreditCardInfo *credit_
         return;
     }
 
-    for (int i = 0; i < num_credit_cards; i++)
+    for (int i = 0; i < num_cartoes_credito; i++)
     {
-        fprintf(arquivo, "%s\n", credit_cards[i].resultado);
+        fprintf(arquivo, "%s\n", cartoes_credito[i].resultado);
     }
 
     fclose(arquivo);
 }
 
+void *processarCartoes(void *argumento)
+{
+    ThreadData *dados_thread = (ThreadData *)argumento;
+    for (int i = dados_thread->start_index; i < dados_thread->end_index; i++)
+    {
+        char resposta[RESPONSE_SIZE];
+        int resultado_api = fazerSolicitacaoAPI(dados_thread->credit_cards[i].numero, resposta, NULL);
+
+        if (resultado_api == 0)
+        {
+
+            strncpy(dados_thread->credit_cards[i].resultado, resposta, sizeof(dados_thread->credit_cards[i].resultado));
+        }
+        else
+        {
+            fprintf(stderr, "Erro ao verificar o cartão de crédito %s. Código de erro: %d\n", dados_thread->credit_cards[i].numero, resultado_api);
+        }
+    }
+    pthread_exit(NULL);
+}
+
 int main()
 {
-    char proxy_url[MAX_PROXY_URL_LENGTH] = "";
+    char url_proxy[MAX_PROXY_URL_LENGTH] = "";
 
-    int proxy_result = lerProxyConfig(PROXY_CONFIG_FILE, proxy_url);
+    int resultado_proxy = lerConfiguracaoProxy(PROXY_CONFIG_FILE, url_proxy);
 
-    if (proxy_result == 0)
+    if (resultado_proxy == 0)
     {
-        printf("URL do proxy: %s\n", proxy_url);
+        printf("URL do proxy: %s\n", url_proxy);
     }
     else
     {
-        fprintf(stderr, "Erro ao ler a configuração do proxy. Código de erro: %d\n", proxy_result);
+        fprintf(stderr, "Erro ao ler a configuração do proxy. Código de erro: %d\n", resultado_proxy);
         return -1;
     }
 
-    CreditCardInfo *credit_cards = NULL;
-    int num_credit_cards = lerCartoesDeArquivo("resultados/cartoes.txt", &credit_cards);
+    InformacoesCartaoCredito *cartoes_credito = NULL;
+    int num_cartoes_credito = lerCartoesDeArquivo("resultados/cartoes.txt", &cartoes_credito);
 
-    if (num_credit_cards == 0)
+    if (num_cartoes_credito == 0)
     {
         fprintf(stderr, "Nenhum cartão de crédito encontrado no arquivo.\n");
         return -2;
@@ -218,21 +239,21 @@ int main()
 
     pthread_t threads[NUM_THREADS];
     int i;
-    int chunk_size = num_credit_cards / NUM_THREADS;
+    int tamanho_grupo = num_cartoes_credito / NUM_THREADS;
     for (i = 0; i < NUM_THREADS; i++)
     {
-        int start_index = i * chunk_size;
-        int end_index = (i == NUM_THREADS - 1) ? num_credit_cards : start_index + chunk_size;
-        ThreadData *thread_data = (ThreadData *)malloc(sizeof(ThreadData));
-        thread_data->start_index = start_index;
-        thread_data->end_index = end_index;
-        thread_data->credit_cards = credit_cards;
+        int indice_inicial = i * tamanho_grupo;
+        int indice_final = (i == NUM_THREADS - 1) ? num_cartoes_credito : indice_inicial + tamanho_grupo;
+        ThreadData *dados_thread = (ThreadData *)malloc(sizeof(ThreadData));
+        dados_thread->start_index = indice_inicial;
+        dados_thread->end_index = indice_final;
+        dados_thread->credit_cards = cartoes_credito;
 
-        int thread_create_result = pthread_create(&threads[i], NULL, processarCartoes, (void *)thread_data);
+        int resultado_criacao_thread = pthread_create(&threads[i], NULL, processarCartoes, (void *)dados_thread);
 
-        if (thread_create_result != 0)
+        if (resultado_criacao_thread != 0)
         {
-            fprintf(stderr, "Erro ao criar a thread %d. Código de erro: %d\n", i, thread_create_result);
+            fprintf(stderr, "Erro ao criar a thread %d. Código de erro: %d\n", i, resultado_criacao_thread);
             return -3;
         }
     }
@@ -242,10 +263,11 @@ int main()
         pthread_join(threads[i], NULL);
     }
 
-    salvarResultadosEmArquivo("results/resultado.txt", credit_cards, num_credit_cards);
-    salvarResultadosEmArquivo("criptografia/resultado_criptografado.txt", credit_cards, num_credit_cards);
+    salvarResultadosEmArquivo("resultados/resultado.txt", cartoes_credito, num_cartoes_credito);
+    salvarResultadosEmArquivo("criptografia/resultado_criptografado.txt", cartoes_credito, num_cartoes_credito);
 
-    free(credit_cards);
+    free(cartoes_credito);
 
     return 0;
 }
+
